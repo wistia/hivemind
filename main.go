@@ -40,6 +40,7 @@ func main() {
 		cli.BoolFlag{Name: "print-timestamps, T", EnvVar: "HIVEMIND_PRINT_TIMESTAMPS", Usage: "timestamps will be printed if the flag is specified", Destination: &conf.PrintTimestamps},
 		cli.StringFlag{Name: "can-die, c", EnvVar: "HIVEMIND_CAN_DIE", Usage: "process names that can die", Destination: &conf.CanDieProcNames},
 		cli.StringFlag{Name: "shell, H", EnvVar: "HIVEMIND_SHELL", Usage: "Specify shell to run processes with. (default: \"sh\")", Destination: &conf.ProcShell},
+		cli.BoolFlag{Name: "wait, W", EnvVar: "HIVEMIND_WAIT", Usage: "Wait for all processes to finish", Destination: &conf.Wait},
 	}
 
 	app.Action = func(c *cli.Context) error {

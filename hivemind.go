@@ -24,6 +24,7 @@ type hivemindConfig struct {
 	PrintTimestamps    bool
 	CanDieProcNames    string
 	ProcShell          string
+	Wait               bool
 }
 
 type hivemind struct {
@@ -36,6 +37,8 @@ type hivemind struct {
 	exitCodeCh  chan int
 	timeout     time.Duration
 	exitCode    int
+	wait        bool
+	numWaiting  int
 }
 
 func newHivemind(conf hivemindConfig) (h *hivemind) {
@@ -54,6 +57,10 @@ func newHivemind(conf hivemindConfig) (h *hivemind) {
 	h.exitCodeCh = make(chan int, len(conf.ProcNames))
 
 	procNames := splitAndTrim(conf.ProcNames)
+	if conf.Wait {
+		h.wait = conf.Wait
+		h.numWaiting = len(procNames)
+	}
 	canDieProcMap := parseCanDieProcNames(conf.CanDieProcNames)
 
 	procShell := defaultProcShell
@@ -75,7 +82,7 @@ func (h *hivemind) runProcess(proc *process) {
 
 	go func() {
 		defer h.procWg.Done()
-		if !proc.CanDie {
+		if !h.wait && !proc.CanDie {
 			defer func() { h.done <- true }()
 		}
 
@@ -117,6 +124,12 @@ func (h *hivemind) processExitCodes() {
 		case exitCode := <-h.exitCodeCh:
 			if exitCode > h.exitCode {
 				h.exitCode = exitCode
+			}
+			if h.wait {
+				h.numWaiting--
+				if h.numWaiting == 0 {
+					h.done <- true
+				}
 			}
 		case <-h.interrupted:
 		}
