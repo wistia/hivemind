@@ -38,6 +38,8 @@ func main() {
 		cli.IntFlag{Name: "timeout, t", EnvVar: "HIVEMIND_TIMEOUT", Usage: "specify the amount of time (in seconds) processes have to shut down gracefully before being brutally killed", Value: 5, Destination: &conf.Timeout},
 		cli.BoolFlag{Name: "no-prefix", EnvVar: "HIVEMIND_NO_PREFIX", Usage: "process names will not be printed if the flag is specified", Destination: &conf.NoPrefix},
 		cli.BoolFlag{Name: "print-timestamps, T", EnvVar: "HIVEMIND_PRINT_TIMESTAMPS", Usage: "timestamps will be printed if the flag is specified", Destination: &conf.PrintTimestamps},
+		cli.StringFlag{Name: "can-die, c", EnvVar: "HIVEMIND_CAN_DIE", Usage: "process names that can die", Destination: &conf.CanDieProcNames},
+		cli.StringFlag{Name: "shell, H", EnvVar: "HIVEMIND_SHELL", Usage: "Specify shell to run processes with. (default: \"sh\")", Destination: &conf.ProcShell},
 	}
 
 	app.Action = func(c *cli.Context) error {

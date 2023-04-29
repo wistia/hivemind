@@ -10,17 +10,19 @@ import (
 type process struct {
 	*exec.Cmd
 
-	Name  string
-	Color int
+	Name   string
+	Color  int
+	CanDie bool
 
 	output *multiOutput
 }
 
-func newProcess(name, command string, color int, root string, port int, output *multiOutput) (proc *process) {
+func newProcess(name, command string, color int, root string, port int, canDie bool, shell string, output *multiOutput) (proc *process) {
 	proc = &process{
-		exec.Command("/bin/sh", "-c", command),
+		exec.Command(fmt.Sprintf("/bin/%s", shell), "-c", command),
 		name,
 		color,
+		canDie,
 		output,
 	}
 
@@ -56,7 +58,7 @@ func (p *process) Running() bool {
 	return p.Process != nil && p.ProcessState == nil
 }
 
-func (p *process) Run() {
+func (p *process) Run() int {
 	p.output.PipeOutput(p)
 	defer p.output.ClosePipe(p)
 
@@ -66,8 +68,10 @@ func (p *process) Run() {
 
 	if err := p.Cmd.Run(); err != nil {
 		p.writeErr(err)
+		return err.(*exec.ExitError).ExitCode()
 	} else {
 		p.writeLine([]byte("\033[1mProcess exited\033[0m"))
+		return 0
 	}
 }
 

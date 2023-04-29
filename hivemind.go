@@ -11,6 +11,7 @@ import (
 )
 
 var colors = []int{2, 3, 4, 5, 6, 42, 130, 103, 129, 108}
+var defaultProcShell = "sh"
 
 type hivemindConfig struct {
 	Title              string
@@ -21,6 +22,8 @@ type hivemindConfig struct {
 	Timeout            int
 	NoPrefix           bool
 	PrintTimestamps    bool
+	CanDieProcNames    string
+	ProcShell          string
 }
 
 type hivemind struct {
@@ -30,7 +33,9 @@ type hivemind struct {
 	procWg      sync.WaitGroup
 	done        chan bool
 	interrupted chan os.Signal
+	exitCodeCh  chan int
 	timeout     time.Duration
+	exitCode    int
 }
 
 func newHivemind(conf hivemindConfig) (h *hivemind) {
@@ -46,12 +51,19 @@ func newHivemind(conf hivemindConfig) (h *hivemind) {
 
 	entries := parseProcfile(conf.Procfile, conf.PortBase, conf.PortStep)
 	h.procs = make([]*process, 0)
+	h.exitCodeCh = make(chan int, len(conf.ProcNames))
 
 	procNames := splitAndTrim(conf.ProcNames)
+	canDieProcMap := parseCanDieProcNames(conf.CanDieProcNames)
+
+	procShell := defaultProcShell
+	if conf.ProcShell != "" {
+		procShell = conf.ProcShell
+	}
 
 	for i, entry := range entries {
 		if len(procNames) == 0 || stringsContain(procNames, entry.Name) {
-			h.procs = append(h.procs, newProcess(entry.Name, entry.Command, colors[i%len(colors)], conf.Root, entry.Port, h.output))
+			h.procs = append(h.procs, newProcess(entry.Name, entry.Command, colors[i%len(colors)], conf.Root, entry.Port, canDieProcMap[entry.Name], procShell, h.output))
 		}
 	}
 
@@ -63,9 +75,11 @@ func (h *hivemind) runProcess(proc *process) {
 
 	go func() {
 		defer h.procWg.Done()
-		defer func() { h.done <- true }()
+		if !proc.CanDie {
+			defer func() { h.done <- true }()
+		}
 
-		proc.Run()
+		h.exitCodeCh <- proc.Run()
 	}()
 }
 
@@ -97,6 +111,18 @@ func (h *hivemind) waitForExit() {
 	}
 }
 
+func (h *hivemind) processExitCodes() {
+	for {
+		select {
+		case exitCode := <-h.exitCodeCh:
+			if exitCode > h.exitCode {
+				h.exitCode = exitCode
+			}
+		case <-h.interrupted:
+		}
+	}
+}
+
 func (h *hivemind) Run() {
 	fmt.Printf("\033]0;%s | hivemind\007", h.title)
 
@@ -109,7 +135,18 @@ func (h *hivemind) Run() {
 		h.runProcess(proc)
 	}
 
+	go h.processExitCodes()
 	go h.waitForExit()
 
 	h.procWg.Wait()
+	os.Exit(h.exitCode)
+}
+
+func parseCanDieProcNames(str string) map[string]bool {
+	canDieProcNames := splitAndTrim(str)
+	canDieProcMap := map[string]bool{}
+	for _, procName := range canDieProcNames {
+		canDieProcMap[procName] = true
+	}
+	return canDieProcMap
 }
